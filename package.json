@@ -1,9 +1,9 @@
 {
-  "name": "logseq-plugin-git",
+  "name": "logseq-plugin-git-autosync",
   "version": "1.5.4",
   "main": "dist/index.html",
   "logseq": {
-    "id": "logseq-git",
+    "id": "logseq-git-autosync",
     "icon": "logo.png"
   },
   "scripts": {
