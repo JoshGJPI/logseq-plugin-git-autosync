@@ -220,6 +220,7 @@ if (isDevelopment) {
       });
     }
 
+    //where shortcuts are registered
     logseq.App.registerCommandPalette(
       {
         key: "logseq-plugin-git:commit&push",
