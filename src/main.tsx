@@ -146,7 +146,7 @@ if (isDevelopment) {
     logseq.provideModel(operations);
 
     logseq.App.registerUIItem("toolbar", {
-      key: "git-autosync",
+      key: "git",
       template:
         '<a data-on-click="showPopup" class="button"><i class="ti ti-brand-git"></i></a><div id="plugin-git-content-wrapper"></div>',
     });
