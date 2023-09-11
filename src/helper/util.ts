@@ -6,6 +6,7 @@ import {
 } from "./constants";
 import { status, inProgress, execGitCommand } from "./git";
 
+//checks if there are changes in local files
 export const checkStatus = async () => {
   console.log("Checking status...");
   const statusRes = await status(false);
@@ -68,14 +69,17 @@ export const checkStatusWithDebounce = debounce(() => {
   checkStatus();
 }, 2000);
 
+//checks to see if last commit in remote files matches last commit of local files
 export const isRepoUpTodate = async () => {
   await execGitCommand(["fetch"]);
   const local = await execGitCommand(["rev-parse", "HEAD"]);
   const remote = await execGitCommand(["rev-parse", "@{u}"]);
-  logseq.UI.showMsg(`${local.stdout} === ${remote.stdout}`, "success", { timeout: 30 });
+  logseq.UI.showMsg(`${local.stdout} === ${remote.stdout}`, "success", { timeout: 300 });
   return local.stdout === remote.stdout;
 };
 
+//checks to see if local files are synced with remote files
+//This is the function I want to automate
 export const checkIsSynced = async () => {
   if (inProgress()) {
     console.log("[faiz:] === checkIsSynced Git in progress, skip check");
@@ -89,4 +93,5 @@ export const checkIsSynced = async () => {
       "warning",
       { timeout: 0 }
     );
+  return isSynced;
 };

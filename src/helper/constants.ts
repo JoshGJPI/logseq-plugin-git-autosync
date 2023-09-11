@@ -106,6 +106,7 @@ export const BUTTONS = [
   { key: "commit", title: "Commit", event: "commit" },
   { key: "push", title: "Push", event: "push" },
   { key: "commitAndPush", title: "Commit & Push", event: "commitAndPush" },
+  { key: "syncFiles", title: "Sync Files", event: "syncFiles"},
 ];
 
 export const SETTINGS_SCHEMA: SettingSchemaDesc[] = [
