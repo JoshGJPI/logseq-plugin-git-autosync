@@ -29,7 +29,7 @@ const isDevelopment = import.meta.env.DEV;
 if (isDevelopment) {
   renderApp("browser");
 } else {
-  console.log("=== logseq-plugin-git loaded ===");
+  console.log("=== logseq-plugin-git-autosync loaded ===");
   logseq.ready(() => {
     const operations = {
       check: debounce(async function () {
@@ -232,17 +232,17 @@ if (isDevelopment) {
       },
       () => operations.commitAndPush()
     );
-    logseq.App.registerCommandPalette(
-        {
-          key: "logseq-plugin-git:rebase",
-          label: "Pull Rebase",
-          keybinding: {
-            binding: "mod+alt+s",
-            mode: "global",
-          },
-        },
-        () => operations.pullRebase()
-    );
+    // logseq.App.registerCommandPalette(
+    //     {
+    //       key: "logseq-plugin-git:rebase",
+    //       label: "Pull Rebase",
+    //       keybinding: {
+    //         binding: "mod+alt+s",
+    //         mode: "global",
+    //       },
+    //     },
+    //     () => operations.pullRebase()
+    // );
   });
 }
 
