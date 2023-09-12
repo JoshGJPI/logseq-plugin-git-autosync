@@ -82,7 +82,7 @@ export const isRepoUpTodate = async () => {
 
 //checks to see if local files are synced with remote files
 //This is the function I want to automate
-export const checkIsSynced = async () => {
+export const checkIsSynced = async (showMsg = true) => {
   if (inProgress()) {
     console.log("[faiz:] === checkIsSynced Git in progress, skip check");
     return
@@ -90,21 +90,29 @@ export const checkIsSynced = async () => {
 
   const isSynced = await isRepoUpTodate();
   if (!isSynced)
-    logseq.UI.showMsg(
+    if(showMsg) {
+      logseq.UI.showMsg(
       `The current repository is not synchronized with the remote repository, please check.`,
       "warning",
       { timeout: 0 }
-    );
+      );
+    }
   return isSynced;
 };
 
 export const syncFiles = async (triggerSource: string) => {
-  let source = triggerSource === "CLICK" ? "click" : "auto";
-  console.log(`[faiz:] === syncFiles ${source}`);
+  //check if a Git command is alread in progress
+  if (inProgress()) {
+    console.log("[syncFiles:] === Git in progress, skip check");
+    return;
+  }
 
-  //don't show git updates for auto syncs
-  let message: string = 'No changes detected';
+  console.log(`[syncFiles:] === ${triggerSource} Start`);
 
+  //default notification message
+  let message: string = 'You\'re Synced with Remote';
+
+  //Set up Git command result containers
   let pullResults: IGitResult;
   let commitResults: IGitResult;
   let pushResults: IGitResult;
@@ -115,10 +123,10 @@ export const syncFiles = async (triggerSource: string) => {
   const isLocalCurrent = localStatus.stdout === "" ? true : false;
   
   //check to see if the remote branch has been changed
-  const remoteStatus = await checkIsSynced();
+  const remoteStatus = await checkIsSynced(false);
   if (remoteStatus === undefined) {
     //if check is in progress or error checking remote, stop syncFiles()
-    logseq.UI.showMsg("Unable to check Remote files", "warning", { timeout: 3000 });
+    logseq.UI.showMsg("Unable to check Remote files\nPlease wait and try again", "warning", { timeout: 3000 });
     return;
   }
   const isRemoteCurrent = remoteStatus;
@@ -138,13 +146,13 @@ export const syncFiles = async (triggerSource: string) => {
 
       } else {
         gitError = true;
-        console.log("[syncFiles:] pull Error:", pullResults.stderr);
+        console.log("[syncFiles:] pull Error:", pullResults);
       }
     }
 
     //if only local has been changed => commit and push only
     if (isRemoteCurrent && !isLocalCurrent) {
-      commitResults = await commit(false, `[logseq-plugin-git:commit] ${new Date().toISOString()}`);
+      commitResults = await commit(false, `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`);
       pushResults = await push(false);
 
       //check if there's an error with commit or push commands
@@ -160,11 +168,11 @@ export const syncFiles = async (triggerSource: string) => {
 
     //if both local and remote have changed => pull, commit, then push
     if (!isLocalCurrent && !isRemoteCurrent) {
-      pullResults = await pull(false);
       commitResults = await commit(
         false,
-        `[logseq-plugin-git:commit] ${new Date().toISOString()}`
+        `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`
         );
+      pullResults = await pull(false);
 
       //Check if there are errors with pull, commit, or push commands
       if (pullResults.exitCode === 0 && commitResults.exitCode === 0) {
@@ -195,3 +203,8 @@ export const syncFiles = async (triggerSource: string) => {
   logseq.UI.showMsg(message, messageType, { timeout: 8000 });
   checkStatus();
 }
+
+//Wait 1 minute before autosyncing again
+export const syncFilesWithDebounce = debounce(() => {
+  syncFiles("AUTO");
+}, 60000);

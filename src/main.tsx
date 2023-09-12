@@ -21,7 +21,8 @@ import {
   checkIsSynced,
   checkStatusWithDebounce,
   getPluginStyle,
-  syncFiles
+  syncFiles,
+  syncFilesWithDebounce
 } from "./helper/util";
 import "./index.css";
 
@@ -179,7 +180,7 @@ if (isDevelopment) {
 
         if (visibilityState === "visible") {
           // if (logseq.settings?.autoCheckSynced) checkIsSynced(); <== taken care of by syncFiles()
-          if (logseq.settings?.autoSyncFiles) syncFiles("AUTO");
+          if (logseq.settings?.autoSyncFiles) syncFilesWithDebounce(); //wait 1 minute between autosyncing when screen is hidden
         } else if (visibilityState === "hidden") {
           // logseq.UI.showMsg(`Page is hidden: ${new Date()}`, 'success', { timeout: 0 })
           // noChange void
