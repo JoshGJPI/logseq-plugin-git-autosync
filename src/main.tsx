@@ -165,8 +165,9 @@ if (isDevelopment) {
       });
     }
 
-    if (logseq.settings?.autoCheckSynced) checkIsSynced();
-    checkStatusWithDebounce();
+    //syncFiles() automatically checks if repo is synced
+    // if (logseq.settings?.autoCheckSynced) checkIsSynced();
+    // checkStatusWithDebounce();
 
     if (logseq.settings?.autoSyncFiles) syncFiles("AUTO");
     checkStatusWithDebounce();
@@ -177,7 +178,7 @@ if (isDevelopment) {
         const visibilityState = top?.document?.visibilityState;
 
         if (visibilityState === "visible") {
-          if (logseq.settings?.autoCheckSynced) checkIsSynced();
+          // if (logseq.settings?.autoCheckSynced) checkIsSynced(); <== taken care of by syncFiles()
           if (logseq.settings?.autoSyncFiles) syncFiles("AUTO");
         } else if (visibilityState === "hidden") {
           // logseq.UI.showMsg(`Page is hidden: ${new Date()}`, 'success', { timeout: 0 })

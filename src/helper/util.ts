@@ -5,6 +5,7 @@ import {
   SHOW_POPUP_STYLE,
 } from "./constants";
 import { status, inProgress, execGitCommand, pull, push, commit } from "./git";
+import type { IGitResult } from "@logseq/libs/dist/LSPlugin.user"
 
 //checks if there are changes in local files
 export const checkStatus = async () => {
@@ -31,7 +32,7 @@ export const showPopup = () => {
   const _style = getPluginStyle();
   //updated element id based on alternate plugin name
   logseq.App.queryElementRect("#logseq-git-autosync--git").then((triggerIconRect) => {
-    console.log("[faiz:] === triggerIconRect", triggerIconRect);
+    // console.log("[faiz:] === triggerIconRect", triggerIconRect);
     if (!triggerIconRect) return;
     const popupWidth = 120 + 10 * 2;
     const left =
@@ -105,13 +106,22 @@ export const syncFiles = async (triggerSource: string) => {
   let displayUpdates = triggerSource === "CLICK" ? true : false;
   let message: string = 'No changes detected';
 
+  let pullResults: IGitResult;
+  let commitResults: IGitResult;
+  let pushResults: IGitResult;
+  let gitError = false;
+
   //check to see if there are local changes
   const localStatus = await checkStatus();
   const isLocalCurrent = localStatus.stdout === "" ? true : false;
   
   //check to see if the remote branch has been changed
   const remoteStatus = await checkIsSynced();
-  if (remoteStatus === undefined) return; //if check is in progress, stop syncFiles()
+  if (remoteStatus === undefined) {
+    //if check is in progress or error checking remote, stop syncFiles()
+    logseq.UI.showMsg("Unable to check Remote files", "warning", { timeout: 3000 });
+    return;
+  }
   const isRemoteCurrent = remoteStatus;
 
   //if local or remote has been changed, update files
@@ -121,35 +131,68 @@ export const syncFiles = async (triggerSource: string) => {
 
     //if only remote has been changed => pull only
     if (!isRemoteCurrent && isLocalCurrent) {
-      pull(displayUpdates);
-      message = 'Remote changes pulled to Local';
+      pullResults = await pull(displayUpdates);
+
+      //check if there's an error with pull command
+      if (pullResults.exitCode === 0) {
+        message = 'Remote changes pulled to Local';
+
+      } else {
+        gitError = true;
+        console.log("[syncFiles:] pull Error:", pullResults.stderr);
+      }
     }
 
     //if only local has been changed => commit and push only
     if (isRemoteCurrent && !isLocalCurrent) {
-      await commit(displayUpdates, `[logseq-plugin-git:commit] ${new Date().toISOString()}`);
-      await push(displayUpdates);
+      commitResults = await commit(displayUpdates, `[logseq-plugin-git:commit] ${new Date().toISOString()}`);
+      pushResults = await push(displayUpdates);
 
-      message = 'Local changes pushed to Remote'
+      //check if there's an error with commit or push commands
+      if ( commitResults.exitCode === 0 && pushResults.exitCode === 0) {
+        message = 'Local changes pushed to Remote'
+
+      } else {
+        gitError = true;
+        console.log("[syncFiles:] commit results:", commitResults);
+        console.log("[syncFiles:] push results:", pushResults);
+      }
     }
 
     //if both local and remote have changed => pull, commit, then push
     if (!isLocalCurrent && !isRemoteCurrent) {
-      pull(displayUpdates);
-      const res = await commit(
+      pullResults = await pull(displayUpdates);
+      commitResults = await commit(
         displayUpdates,
         `[logseq-plugin-git:commit] ${new Date().toISOString()}`
         );
-      if (res.exitCode === 0) await push(displayUpdates);
 
-      message = 'Remote changes pulled to Local, then Local changes pushed to Remote';
+      //Check if there are errors with pull, commit, or push commands
+      if (pullResults.exitCode === 0 && commitResults.exitCode === 0) {
+        pushResults = await push(displayUpdates);
+
+        if (pushResults.exitCode === 0) {
+          message = 'Remote changes pulled to Local, then Local changes pushed to Remote';
+
+        } else {
+          gitError = true;
+          console.log("[syncFiles:] push results:", pushResults);
+        }
+      } else {
+        gitError = true;
+        console.log("[syncFiles:] push results:", pullResults);
+        console.log("[syncFiles:] commit results:", commitResults);
+      }
     }
-    logseq.UI.showMsg(message, "success", { timeout: 10000 });
-    checkStatus();
 
-    return;
+    //If git error, update message
+    if (gitError) {
+      message = "Error syncing files"
+    }
+
   }
-  if (displayUpdates) {
-    logseq.UI.showMsg(message, "success", { timeout: 3000 });
-  }
+  //Display results of sync
+  let messageType = gitError ? "warning" : "success";
+  logseq.UI.showMsg(message, messageType, { timeout: 8000 });
+  checkStatus();
 }
