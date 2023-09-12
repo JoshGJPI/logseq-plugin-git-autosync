@@ -103,7 +103,6 @@ export const syncFiles = async (triggerSource: string) => {
   console.log(`[faiz:] === syncFiles ${source}`);
 
   //don't show git updates for auto syncs
-  let displayUpdates = triggerSource === "CLICK" ? true : false;
   let message: string = 'No changes detected';
 
   let pullResults: IGitResult;
@@ -127,11 +126,11 @@ export const syncFiles = async (triggerSource: string) => {
   //if local or remote has been changed, update files
   if (!isLocalCurrent || !isRemoteCurrent) {
     hidePopup();
-    logseq.UI.showMsg("Syncing files with Remote...", "", { timeout: 4000 });
+    logseq.UI.showMsg("Syncing files with Remote...", "", { timeout: 5000 });
 
     //if only remote has been changed => pull only
     if (!isRemoteCurrent && isLocalCurrent) {
-      pullResults = await pull(displayUpdates);
+      pullResults = await pull(false);
 
       //check if there's an error with pull command
       if (pullResults.exitCode === 0) {
@@ -145,8 +144,8 @@ export const syncFiles = async (triggerSource: string) => {
 
     //if only local has been changed => commit and push only
     if (isRemoteCurrent && !isLocalCurrent) {
-      commitResults = await commit(displayUpdates, `[logseq-plugin-git:commit] ${new Date().toISOString()}`);
-      pushResults = await push(displayUpdates);
+      commitResults = await commit(false, `[logseq-plugin-git:commit] ${new Date().toISOString()}`);
+      pushResults = await push(false);
 
       //check if there's an error with commit or push commands
       if ( commitResults.exitCode === 0 && pushResults.exitCode === 0) {
@@ -161,15 +160,15 @@ export const syncFiles = async (triggerSource: string) => {
 
     //if both local and remote have changed => pull, commit, then push
     if (!isLocalCurrent && !isRemoteCurrent) {
-      pullResults = await pull(displayUpdates);
+      pullResults = await pull(false);
       commitResults = await commit(
-        displayUpdates,
+        false,
         `[logseq-plugin-git:commit] ${new Date().toISOString()}`
         );
 
       //Check if there are errors with pull, commit, or push commands
       if (pullResults.exitCode === 0 && commitResults.exitCode === 0) {
-        pushResults = await push(displayUpdates);
+        pushResults = await push(false);
 
         if (pushResults.exitCode === 0) {
           message = 'Remote changes pulled to Local, then Local changes pushed to Remote';
