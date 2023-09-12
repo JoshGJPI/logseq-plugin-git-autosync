@@ -21,6 +21,7 @@ import {
   checkIsSynced,
   checkStatusWithDebounce,
   getPluginStyle,
+  syncFiles
 } from "./helper/util";
 import "./index.css";
 
@@ -102,44 +103,9 @@ if (isDevelopment) {
         hidePopup();
       }),
       syncFiles: debounce(async function () {
-        console.log("[faiz:] === syncFiles click");
-        
-        //check to see if there are local changes
-        const localStatus = await checkStatus();
-        const isLocalCurrent = localStatus.stdout === "" ? true : false;
-        
-        //check to see if the remote branch has been changed
-        const remoteStatus = await checkIsSynced();
-        if (remoteStatus === undefined) return; //if check is in progress, stop syncFiles()
-        const isRemoteCurrent = remoteStatus;
-
-        //if local or remote has been changed, update files
-        if (!isLocalCurrent || !isRemoteCurrent) {
-          setPluginStyle(LOADING_STYLE);
-          hidePopup();
-          //if only remote has been changed, pull only
-          if (!isRemoteCurrent && isLocalCurrent) {
-            pull(false);
-          }
-
-          //if only local has been changed, commit and push only
-          if (isRemoteCurrent && !isLocalCurrent) {
-            commit(true, `[logseq-plugin-git:commit] ${new Date().toISOString()}`);
-            await push();
-          }
-
-          //if both local and remote have changed: pull, commit, then push
-          if (!isLocalCurrent && !isRemoteCurrent) {
-            pull(false);
-            const res = await commit(
-              true,
-              `[logseq-plugin-git:commit] ${new Date().toISOString()}`
-              );
-            if (res.exitCode === 0) await push(true);
-          }
-          checkStatus();
-        }
-      
+        hidePopup();
+        setPluginStyle(LOADING_STYLE);
+        await syncFiles("CLICK");
       })
     };
 
@@ -202,6 +168,9 @@ if (isDevelopment) {
     if (logseq.settings?.autoCheckSynced) checkIsSynced();
     checkStatusWithDebounce();
 
+    if (logseq.settings?.autoSyncFiles) syncFiles("AUTO");
+    checkStatusWithDebounce();
+
     //if page is hidden/made visible, it checks if the files are synced
     if (top) {
       top.document?.addEventListener("visibilitychange", async () => {
@@ -209,6 +178,7 @@ if (isDevelopment) {
 
         if (visibilityState === "visible") {
           if (logseq.settings?.autoCheckSynced) checkIsSynced();
+          if (logseq.settings?.autoSyncFiles) syncFiles("AUTO");
         } else if (visibilityState === "hidden") {
           // logseq.UI.showMsg(`Page is hidden: ${new Date()}`, 'success', { timeout: 0 })
           // noChange void

@@ -4,7 +4,7 @@ import {
   INACTIVE_STYLE,
   SHOW_POPUP_STYLE,
 } from "./constants";
-import { status, inProgress, execGitCommand } from "./git";
+import { status, inProgress, execGitCommand, pull, push, commit } from "./git";
 
 //checks if there are changes in local files
 export const checkStatus = async () => {
@@ -75,7 +75,7 @@ export const isRepoUpTodate = async () => {
   await execGitCommand(["fetch"]);
   const local = await execGitCommand(["rev-parse", "HEAD"]);
   const remote = await execGitCommand(["rev-parse", "@{u}"]);
-  logseq.UI.showMsg(`${local.stdout} === ${remote.stdout}`, "success", { timeout: 300 });
+  // logseq.UI.showMsg(`${local.stdout} === ${remote.stdout}`, "success", { timeout: 30 });
   return local.stdout === remote.stdout;
 };
 
@@ -96,3 +96,60 @@ export const checkIsSynced = async () => {
     );
   return isSynced;
 };
+
+export const syncFiles = async (triggerSource: string) => {
+  let source = triggerSource === "CLICK" ? "click" : "auto";
+  console.log(`[faiz:] === syncFiles ${source}`);
+
+  //don't show git updates for auto syncs
+  let displayUpdates = triggerSource === "CLICK" ? true : false;
+  let message: string = 'No changes detected';
+
+  //check to see if there are local changes
+  const localStatus = await checkStatus();
+  const isLocalCurrent = localStatus.stdout === "" ? true : false;
+  
+  //check to see if the remote branch has been changed
+  const remoteStatus = await checkIsSynced();
+  if (remoteStatus === undefined) return; //if check is in progress, stop syncFiles()
+  const isRemoteCurrent = remoteStatus;
+
+  //if local or remote has been changed, update files
+  if (!isLocalCurrent || !isRemoteCurrent) {
+    hidePopup();
+    logseq.UI.showMsg("Syncing files with Remote...", "", { timeout: 4000 });
+
+    //if only remote has been changed => pull only
+    if (!isRemoteCurrent && isLocalCurrent) {
+      pull(displayUpdates);
+      message = 'Remote changes pulled to Local';
+    }
+
+    //if only local has been changed => commit and push only
+    if (isRemoteCurrent && !isLocalCurrent) {
+      await commit(displayUpdates, `[logseq-plugin-git:commit] ${new Date().toISOString()}`);
+      await push(displayUpdates);
+
+      message = 'Local changes pushed to Remote'
+    }
+
+    //if both local and remote have changed => pull, commit, then push
+    if (!isLocalCurrent && !isRemoteCurrent) {
+      pull(displayUpdates);
+      const res = await commit(
+        displayUpdates,
+        `[logseq-plugin-git:commit] ${new Date().toISOString()}`
+        );
+      if (res.exitCode === 0) await push(displayUpdates);
+
+      message = 'Remote changes pulled to Local, then Local changes pushed to Remote';
+    }
+    logseq.UI.showMsg(message, "success", { timeout: 10000 });
+    checkStatus();
+
+    return;
+  }
+  if (displayUpdates) {
+    logseq.UI.showMsg(message, "success", { timeout: 3000 });
+  }
+}

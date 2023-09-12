@@ -1,7 +1,7 @@
 import { SettingSchemaDesc } from "@logseq/libs/dist/LSPlugin.user";
 
 export const COMMON_STYLE = `
-#injected-ui-item-git-logseq-git {
+#injected-ui-item-git-logseq-git-autosync {
   position: relative;
 }
 .plugin-git-container {
@@ -51,13 +51,13 @@ export const HIDE_POPUP_STYLE = `
 
 export const INACTIVE_STYLE = `
 ${COMMON_STYLE}
-#injected-ui-item-git-logseq-git::after {
+#injected-ui-item-git-logseq-git-autosync::after {
   display: none;
 }
 `;
 export const ACTIVE_STYLE = `
 ${COMMON_STYLE}
-#injected-ui-item-git-logseq-git::after {
+#injected-ui-item-git-logseq-git-autosync::after {
   display: block;
   content: '';
   position: absolute;
@@ -72,7 +72,7 @@ ${COMMON_STYLE}
 
 export const LOADING_STYLE = `
 ${COMMON_STYLE}
-#injected-ui-item-git-logseq-git::after {
+#injected-ui-item-git-logseq-git-autosync::after {
   display: block;
   content: '';
   position: absolute;
@@ -140,5 +140,13 @@ export const SETTINGS_SCHEMA: SettingSchemaDesc[] = [
     type: "boolean",
     default: false,
     description: "Auto push when logseq hide",
+  },
+  {
+    key: "autoSyncFiles",
+    title: "Auto Sync Files with Remote",
+    type: "boolean",
+    default: true,
+    description:
+      "Automatically sync local and remote files",
   },
 ];
