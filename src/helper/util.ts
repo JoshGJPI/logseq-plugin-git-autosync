@@ -101,13 +101,13 @@ export const checkIsSynced = async (showMsg = true) => {
 };
 
 export const syncFiles = async (triggerSource: string) => {
+  console.log(`[syncFiles:] === ${triggerSource} Start`);
+
   //check if a Git command is alread in progress
   if (inProgress()) {
     console.log("[syncFiles:] === Git in progress, skip check");
     return;
   }
-
-  console.log(`[syncFiles:] === ${triggerSource} Start`);
 
   //default notification message
   let message: string = 'You\'re Synced with Remote';
