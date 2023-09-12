@@ -201,6 +201,7 @@ export const syncFiles = async (triggerSource: string) => {
   //Display results of sync
   let messageType = gitError ? "warning" : "success";
   logseq.UI.showMsg(message, messageType, { timeout: 8000 });
+  console.log("[syncFiles:] === Complete");
   checkStatus();
 }
 
