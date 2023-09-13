@@ -3,6 +3,7 @@ import {
   HIDE_POPUP_STYLE,
   INACTIVE_STYLE,
   SHOW_POPUP_STYLE,
+  LOADING_STYLE
 } from "./constants";
 import { status, inProgress, execGitCommand, pull, push, commit } from "./git";
 import type { IGitResult } from "@logseq/libs/dist/LSPlugin.user"
@@ -100,8 +101,25 @@ export const checkIsSynced = async (showMsg = true) => {
   return isSynced;
 };
 
+let lastSyncTime: number | undefined;
+const maxSyncFrequency = 60000; //required time spacing in ms between file syncs
+
 export const syncFiles = async (triggerSource: string) => {
   console.log(`[syncFiles:] === ${triggerSource} Start`);
+
+  //check if it's been long enough to autosync again
+  if (!lastSyncTime) {
+    lastSyncTime = Date.now();
+  } else {
+    let currentSyncTime = Date.now();
+    let timeSinceSync = currentSyncTime - lastSyncTime;
+
+    //if sync is initiated faster than maxSyncFrequency, stop sync
+    if (timeSinceSync < maxSyncFrequency && triggerSource === "AUTO") {
+      console.log("[syncFiles:] === synced too soon, sync stopped");
+      return;
+    }
+  }
 
   //check if a Git command is alread in progress
   if (inProgress()) {
@@ -110,7 +128,7 @@ export const syncFiles = async (triggerSource: string) => {
   }
 
   //default notification message
-  let message: string = 'You\'re Synced with Remote';
+  let message: string = 'No changes detected\nYou\'re Synced with Remote!';
 
   //Set up Git command result containers
   let pullResults: IGitResult;
@@ -134,6 +152,7 @@ export const syncFiles = async (triggerSource: string) => {
   //if local or remote has been changed, update files
   if (!isLocalCurrent || !isRemoteCurrent) {
     hidePopup();
+    setPluginStyle(LOADING_STYLE); //let user know the plugin is working
     logseq.UI.showMsg("Syncing files with Remote...", "", { timeout: 5000 });
 
     //if only remote has been changed => pull only
@@ -204,8 +223,3 @@ export const syncFiles = async (triggerSource: string) => {
   console.log("[syncFiles:] === Complete");
   checkStatus();
 }
-
-//Wait 1 minute before autosyncing again
-export const syncFilesWithDebounce = debounce(() => {
-  syncFiles("AUTO");
-}, 60000);
