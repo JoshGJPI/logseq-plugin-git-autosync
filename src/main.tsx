@@ -187,27 +187,30 @@ if (isDevelopment) {
         }
       });
 
-      //check to syncFiles when window is blurred or focused
+      //check to syncFiles when window is blurred
       top.window?.addEventListener("blur", async () => {
         console.log("[syncFiles:] onBlur");
         if (logseq.settings?.autoSyncFiles) await syncFiles("AUTO");
       })
-      top.window?.addEventListener("focus", async () => {
-        console.log("[syncFiles:] onFocus");
-        if (logseq.settings?.autoSyncFiles) await syncFiles("AUTO");
-      })
+
+      //REMOVED onFocus for now - seemed to be redundant
+      // top.window?.addEventListener("focus", async () => {
+      //   console.log("[syncFiles:] onFocus");
+      //   if (logseq.settings?.autoSyncFiles) await syncFiles("AUTO");
+      // })
     }
+
     //where shortcuts are registered
     logseq.App.registerCommandPalette(
       {
-        key: "logseq-plugin-git:commit&push",
-        label: "Commit & Push",
+        key: "logseq-plugin-git-autosync:syncfiles",
+        label: "Sync Files",
         keybinding: {
           binding: "mod+s",
           mode: "global",
         },
       },
-      () => operations.commitAndPush()
+      () => operations.syncFiles()
     );
     // logseq.App.registerCommandPalette(
     //     {
