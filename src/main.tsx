@@ -175,10 +175,8 @@ if (isDevelopment) {
     if (top) {
       top.document?.addEventListener("visibilitychange", async () => {
         const visibilityState = top?.document?.visibilityState;
-
         if (visibilityState === "visible") {
           // if (logseq.settings?.autoCheckSynced) checkIsSynced(); <== taken care of by syncFiles()
-          if (logseq.settings?.autoSyncFiles) syncFiles("AUTO"); //wait 1 minute between autosyncing when screen is hidden
         } else if (visibilityState === "hidden") {
           // logseq.UI.showMsg(`Page is hidden: ${new Date()}`, 'success', { timeout: 0 })
           // noChange void
@@ -188,8 +186,17 @@ if (isDevelopment) {
           }
         }
       });
-    }
 
+      //check to syncFiles when window is blurred or focused
+      top.window?.addEventListener("blur", async () => {
+        console.log("[syncFiles:] onBlur");
+        if (logseq.settings?.autoSyncFiles) await syncFiles("AUTO");
+      })
+      top.window?.addEventListener("focus", async () => {
+        console.log("[syncFiles:] onFocus");
+        if (logseq.settings?.autoSyncFiles) await syncFiles("AUTO");
+      })
+    }
     //where shortcuts are registered
     logseq.App.registerCommandPalette(
       {

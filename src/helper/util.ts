@@ -102,7 +102,7 @@ export const checkIsSynced = async (showMsg = true) => {
 };
 
 let lastSyncTime: number | undefined;
-const maxSyncFrequency = 60000; //required time spacing in ms between file syncs
+const maxSyncFrequency = 300000; //Requires 5 minutes between autosyncing files
 
 export const syncFiles = async (triggerSource: string) => {
   console.log(`[syncFiles:] === ${triggerSource} Start`);
@@ -113,7 +113,7 @@ export const syncFiles = async (triggerSource: string) => {
   } else {
     let currentSyncTime = Date.now();
     let timeSinceSync = currentSyncTime - lastSyncTime;
-
+    console.log("time since sync", timeSinceSync);
     //if sync is initiated faster than maxSyncFrequency, stop sync
     if (timeSinceSync < maxSyncFrequency && triggerSource === "AUTO") {
       console.log("[syncFiles:] === synced too soon, sync stopped");
@@ -193,6 +193,15 @@ export const syncFiles = async (triggerSource: string) => {
         );
       pullResults = await pull(false);
 
+      //Try committing again if remote branch was ahead of local and caused an error
+      if (commitResults.exitCode !== 0) {
+        commitResults = await commit(
+          false,
+          `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`
+          );
+        console.log("[syncFiles:] commit retry", commitResults);
+      }
+
       //Check if there are errors with pull, commit, or push commands
       if (pullResults.exitCode === 0 && commitResults.exitCode === 0) {
         pushResults = await push(false);
@@ -214,6 +223,8 @@ export const syncFiles = async (triggerSource: string) => {
     //If git error, update message
     if (gitError) {
       message = "Error syncing files"
+    } else {
+      lastSyncTime = Date.now(); //update last time synced
     }
 
   }
