@@ -215,7 +215,7 @@ export const syncFiles = async (triggerSource: string) => {
         }
       } else {
         gitError = true;
-        console.log("[syncFiles:] push results:", pullResults);
+        console.log("[syncFiles:] pull results:", pullResults);
         console.log("[syncFiles:] commit results:", commitResults);
       }
     }

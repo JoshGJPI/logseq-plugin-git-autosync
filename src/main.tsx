@@ -187,17 +187,34 @@ if (isDevelopment) {
         }
       });
 
+      //holder variables for automated syncFiles()
+      let syncIntervalId: ReturnType<typeof setInterval>;
+      const blurSyncInterval = 600000; //10minutes
+
       //check to syncFiles when window is blurred
       top.window?.addEventListener("blur", async () => {
-        console.log("[syncFiles:] onBlur");
-        if (logseq.settings?.autoSyncFiles) await syncFiles("AUTO");
+        if (logseq.settings?.autoSyncFiles) {
+
+          //if autoSyncFiles is active, sync on blur
+          console.log("[syncFiles:] onBlur");
+          await syncFiles("AUTO");
+
+          //resync in set interval while window is blurred
+          syncIntervalId = setInterval(async () =>{
+            console.log("[syncFiles:] onBlur setInterval");
+            await syncFiles("AUTO")
+          }, blurSyncInterval);
+        } 
       })
 
-      //REMOVED onFocus for now - seemed to be redundant
-      // top.window?.addEventListener("focus", async () => {
-      //   console.log("[syncFiles:] onFocus");
-      //   if (logseq.settings?.autoSyncFiles) await syncFiles("AUTO");
-      // })
+      //clears autosync interval when window is focused
+      //There's no need to syncFiles here. I'm relying on blurring happening enough to keep files synced
+      top.window?.addEventListener("focus", () => {
+        if (syncIntervalId) {
+          console.log("[syncFiles:] onBlur clearInterval");
+          clearInterval(syncIntervalId);
+        }
+      })
     }
 
     //where shortcuts are registered
