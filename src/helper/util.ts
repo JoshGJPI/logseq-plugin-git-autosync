@@ -68,6 +68,7 @@ export const debounce = (fn, wait: number = 100, environment?: any) => {
   };
 };
 
+//checks status every 2 seconds maximum
 export const checkStatusWithDebounce = debounce(() => {
   checkStatus();
 }, 2000);
@@ -113,7 +114,7 @@ export const syncFiles = async (triggerSource: string) => {
   } else {
     let currentSyncTime = Date.now();
     let timeSinceSync = currentSyncTime - lastSyncTime;
-    console.log("time since sync", timeSinceSync);
+    console.log("time since sync", timeSinceSync, timeSinceSync < maxSyncFrequency, triggerSource === "AUTO");
     //if sync is initiated faster than maxSyncFrequency, stop sync
     if (timeSinceSync < maxSyncFrequency && triggerSource === "AUTO") {
       console.log("[syncFiles:] === synced too soon, sync stopped");
@@ -127,8 +128,13 @@ export const syncFiles = async (triggerSource: string) => {
     return;
   }
 
-  //default notification message
+  //Response info defaults
   let message: string = 'No changes detected\nYou\'re Synced with Remote!';
+  let syncInfo = {
+    wasPulled: false,
+    wasCommitted: false,
+    wasPushed: false
+  }
 
   //Set up Git command result containers
   let pullResults: IGitResult;
@@ -162,6 +168,7 @@ export const syncFiles = async (triggerSource: string) => {
       //check if there's an error with pull command
       if (pullResults.exitCode === 0) {
         message = 'Remote changes pulled to Local';
+        syncInfo.wasPulled = true;
 
       } else {
         gitError = true;
@@ -177,6 +184,8 @@ export const syncFiles = async (triggerSource: string) => {
       //check if there's an error with commit or push commands
       if ( commitResults.exitCode === 0 && pushResults.exitCode === 0) {
         message = 'Local changes pushed to Remote'
+        syncInfo.wasCommitted = true;
+        syncInfo.wasPushed = true;
 
       } else {
         gitError = true;
@@ -204,10 +213,14 @@ export const syncFiles = async (triggerSource: string) => {
 
       //Check if there are errors with pull, commit, or push commands
       if (pullResults.exitCode === 0 && commitResults.exitCode === 0) {
+        syncInfo.wasPulled = true;
+        syncInfo.wasCommitted = true;
+
         pushResults = await push(false);
 
         if (pushResults.exitCode === 0) {
           message = 'Remote changes pulled to Local, then Local changes pushed to Remote';
+          syncInfo.wasPushed = true;
 
         } else {
           gitError = true;
@@ -219,18 +232,19 @@ export const syncFiles = async (triggerSource: string) => {
         console.log("[syncFiles:] commit results:", commitResults);
       }
     }
-
-    //If git error, update message
-    if (gitError) {
-      message = "Error syncing files"
-    } else {
-      lastSyncTime = Date.now(); //update last time synced
-    }
-
   }
+
+  //If git error, update message
+  if (gitError) {
+    message = "Error syncing files"
+  } else {
+    lastSyncTime = Date.now(); //update last time synced
+  }
+
   //Display results of sync
   let messageType = gitError ? "warning" : "success";
   logseq.UI.showMsg(message, messageType, { timeout: 8000 });
   console.log("[syncFiles:] === Complete");
   checkStatus();
+  return syncInfo; //give info on what Git commands happened
 }

@@ -190,19 +190,24 @@ if (isDevelopment) {
       //holder variables for automated syncFiles()
       let syncIntervalId: ReturnType<typeof setInterval>;
       const blurSyncInterval = 300000; //5minutes
+      let wasPulledInBlur = false;
 
       //check to syncFiles when window is blurred
       top.window?.addEventListener("blur", async () => {
+        wasPulledInBlur = false;
         if (logseq.settings?.autoSyncFiles) {
 
           //if autoSyncFiles is active, sync on blur
           console.log("[syncFiles:] onBlur");
-          await syncFiles("AUTO");
+          let initialBlurSyncResults = await syncFiles("AUTO");
 
+          if (initialBlurSyncResults?.wasPulled) wasPulledInBlur = true;
           //resync in set interval while window is blurred
           syncIntervalId = setInterval(async () =>{
             console.log("[syncFiles:] onBlur setInterval");
-            await syncFiles("AUTO")
+            let intervalBlurSyncResults = await syncFiles("AUTO")
+
+            if (intervalBlurSyncResults?.wasPulled) wasPulledInBlur = true;
           }, blurSyncInterval);
         } 
       })
@@ -210,6 +215,14 @@ if (isDevelopment) {
       //clears autosync interval when window is focused
       //There's no need to syncFiles here. I'm relying on blurring happening enough to keep files synced
       top.window?.addEventListener("focus", () => {
+
+        //notify user if files were synced while blurred
+        if (wasPulledInBlur) {
+          logseq.UI.showMsg("Files synced while you were away", "success", { timeout: 4000 });
+          wasPulledInBlur = false;
+        }
+
+        //clear blur sync interval when focused
         if (syncIntervalId) {
           console.log("[syncFiles:] onBlur clearInterval");
           clearInterval(syncIntervalId);
