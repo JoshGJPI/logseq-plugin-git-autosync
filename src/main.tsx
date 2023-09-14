@@ -189,7 +189,7 @@ if (isDevelopment) {
 
       //holder variables for automated syncFiles()
       let syncIntervalId: ReturnType<typeof setInterval>;
-      const blurSyncInterval = 600000; //10minutes
+      const blurSyncInterval = 300000; //5minutes
 
       //check to syncFiles when window is blurred
       top.window?.addEventListener("blur", async () => {
