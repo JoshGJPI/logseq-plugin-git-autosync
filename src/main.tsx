@@ -18,10 +18,9 @@ import {
   hidePopup,
   setPluginStyle,
   showPopup,
-  checkIsSynced,
   checkStatusWithDebounce,
-  getPluginStyle,
-  syncFiles,
+  checkIsSynced,
+  SyncStatus,
 } from "./helper/util";
 import "./index.css";
 
@@ -104,7 +103,7 @@ if (isDevelopment) {
       }),
       syncFiles: debounce(async function () {
         hidePopup();
-        await syncFiles("CLICK");
+        await checkIsSynced("CLICK", true);
       })
     };
 
@@ -168,7 +167,34 @@ if (isDevelopment) {
     // if (logseq.settings?.autoCheckSynced) checkIsSynced();
     // checkStatusWithDebounce();
 
-    if (logseq.settings?.autoSyncFiles) syncFiles("AUTO");
+    let autoSyncDefault: SyncStatus = {
+      wasPulled : false,
+      pullResults : undefined,
+      wasCommitted : false,
+      commitResults : undefined,
+      wasPushed : false,
+      pushResults : undefined,
+      gitError : false,
+      accessError: false,
+      message : 'No changes detected\nYou\'re Synced with Remote!'
+    }
+
+    let autoSyncIntervalId: ReturnType<typeof setInterval>;
+    let autoSyncResults = autoSyncDefault;
+    const autoSyncInterval = 15000; //15 seconds
+
+    //sync files when LogSeq is opened
+    if (logseq.settings?.autoSyncFiles){
+      console.log("first run");
+      let initialSyncResults = async () => await checkIsSynced("AUTO", true);
+
+      //start automated file syncing after user makes a change
+      logseq.DB.onChanged(({ blocks, txData, txMeta }) => {
+        console.log("[syncFiles:] === DB Changed");
+        restartAutoSync();
+      });
+
+    }
     checkStatusWithDebounce();
 
     //if page is hidden/made visible, it checks if the files are synced
@@ -187,48 +213,86 @@ if (isDevelopment) {
         }
       });
 
-      //holder variables for automated syncFiles()
-      let syncIntervalId: ReturnType<typeof setInterval>;
-      const blurSyncInterval = 300000; //5minutes
-      let wasPulledInBlur = false;
+      // //holder variables for automated syncFiles()
+      // let syncIntervalId: ReturnType<typeof setInterval>;
+      // const blurSyncInterval = 300000; //5minutes
+      // let wasPulledInBlur = false;
 
-      //check to syncFiles when window is blurred
-      top.window?.addEventListener("blur", async () => {
-        wasPulledInBlur = false;
-        if (logseq.settings?.autoSyncFiles) {
+      // //check to syncFiles when window is blurred
+      // top.window?.addEventListener("blur", async () => {
+      //   wasPulledInBlur = false;
+      //   if (logseq.settings?.autoSyncFiles) {
 
-          //if autoSyncFiles is active, sync on blur
-          console.log("[syncFiles:] onBlur");
-          let initialBlurSyncResults = await syncFiles("AUTO");
+      //     //if autoSyncFiles is active, sync on blur
+      //     console.log("[syncFiles:] onBlur");
+      //     let initialBlurSyncResults = await checkIsSynced("AUTO");
 
-          if (initialBlurSyncResults?.wasPulled) wasPulledInBlur = true;
-          //resync in set interval while window is blurred
-          syncIntervalId = setInterval(async () =>{
-            console.log("[syncFiles:] onBlur setInterval");
-            let intervalBlurSyncResults = await syncFiles("AUTO")
+      //     if (initialBlurSyncResults?.wasPulled) wasPulledInBlur = true;
+      //     //resync in set interval while window is blurred
+      //     syncIntervalId = setInterval(async () =>{
+      //       console.log("[syncFiles:] onBlur setInterval");
+      //       let intervalBlurSyncResults = await checkIsSynced("AUTO")
 
-            if (intervalBlurSyncResults?.wasPulled) wasPulledInBlur = true;
-          }, blurSyncInterval);
-        } 
-      })
+      //       if (intervalBlurSyncResults?.wasPulled) wasPulledInBlur = true;
+      //     }, blurSyncInterval);
+      //   } 
+      // })
 
       //clears autosync interval when window is focused
       //There's no need to syncFiles here. I'm relying on blurring happening enough to keep files synced
       top.window?.addEventListener("focus", () => {
-
-        //notify user if files were synced while blurred
-        if (wasPulledInBlur) {
-          logseq.UI.showMsg("Files synced while you were away", "success", { timeout: 4000 });
-          wasPulledInBlur = false;
+        console.log("[syncFiles:] === onFocus");
+        console.log(autoSyncResults);
+        //notify user if files were synced while away
+        if (autoSyncResults.wasCommitted || autoSyncResults.wasPulled || autoSyncResults.wasPushed) {
+          console.log(autoSyncResults.gitError);
+          if (!autoSyncResults.gitError) {
+            logseq.UI.showMsg("Files synced while you were away", "success", { timeout: 4000 });
+          } else {
+            console.log("I'm the error!");
+            logseq.UI.showMsg("Error syncing files", "warning", { timeout: 4000 });
+          }
         }
 
-        //clear blur sync interval when focused
-        if (syncIntervalId) {
-          console.log("[syncFiles:] onBlur clearInterval");
-          clearInterval(syncIntervalId);
-        }
+        //reset results for next onBlur event
+        autoSyncResults = autoSyncDefault;
+        console.log(autoSyncResults);
+        //reset timer interval onFocus to avoid typing conflicts
+        restartAutoSync();
+
+        // //notify user if files were synced while blurred
+        // if (wasPulledInBlur) {
+        //   logseq.UI.showMsg("Files synced while you were away", "success", { timeout: 4000 });
+        //   wasPulledInBlur = false;
+        // }
+
+        // //clear blur sync interval when focused
+        // if (syncIntervalId) {
+        //   console.log("[syncFiles:] onBlur clearInterval");
+        //   clearInterval(syncIntervalId);
+        // }
+      })
+
+      //restart autosync timer whenever user moves mouse
+      top.window?.addEventListener('mousemove', () =>{
+        restartAutoSync();
       })
     }
+
+  const restartAutoSync = () => {
+    //Cancel autosync from running
+    clearInterval(autoSyncIntervalId);
+
+    //reset interval after canceling
+    autoSyncIntervalId = setInterval( async () => {
+      let autoIntervalResults = await checkIsSynced("AUTO", false);
+      let commandArray = ['wasPulled', 'wasCommitted', 'wasPushed', 'gitError'];
+      commandArray.forEach((commandName) => {
+        if (autoIntervalResults && autoIntervalResults[commandName]) autoSyncResults[commandName] = true;
+      })
+      
+    }, autoSyncInterval)
+  }
 
     //where shortcuts are registered
     logseq.App.registerCommandPalette(
