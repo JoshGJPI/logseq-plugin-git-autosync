@@ -84,7 +84,7 @@ export const isRepoUpTodate = async () => {
 
 //checks to see if local files are synced with remote files
 //This is the function I want to automate
-export const checkIsSynced = async (showMsg = true) => {
+export const checkRemoteStatus = async (showMsg = true) => {
   if (inProgress()) {
     console.log("[faiz:] === checkIsSynced Git in progress, skip check");
     return
@@ -102,10 +102,22 @@ export const checkIsSynced = async (showMsg = true) => {
   return isSynced;
 };
 
-let lastSyncTime: number | undefined;
-const maxSyncFrequency = 300000; //Requires 5 minutes between autosyncing files
+export interface SyncStatus {
+  wasPulled: boolean,
+  pullResults: IGitResult | undefined,
+  wasCommitted: boolean,
+  commitResults: IGitResult | undefined,
+  wasPushed: boolean,
+  pushResults: IGitResult | undefined,
+  gitError: boolean,
+  accessError: boolean,
+  message: string
+}
 
-export const syncFiles = async (triggerSource: string) => {
+let lastSyncTime: number | undefined;
+const maxSyncFrequency = 10000; //Requires 10 seconds between autosyncing files
+
+export const checkIsSynced = async (triggerSource: string, showUser:boolean) => {
   console.log(`[syncFiles:] === ${triggerSource} Start`);
 
   //check if it's been long enough to autosync again
@@ -128,123 +140,167 @@ export const syncFiles = async (triggerSource: string) => {
     return;
   }
 
-  //Response info defaults
-  let message: string = 'No changes detected\nYou\'re Synced with Remote!';
-  let syncInfo = {
-    wasPulled: false,
-    wasCommitted: false,
-    wasPushed: false
+  //syncInfo default
+  let syncInfo: SyncStatus = {
+    wasPulled : false,
+    pullResults : undefined,
+    wasCommitted : false,
+    commitResults : undefined,
+    wasPushed : false,
+    pushResults : undefined,
+    gitError : false,
+    accessError: false,
+    message : 'No changes detected\nYou\'re Synced with Remote!'
   }
 
-  //Set up Git command result containers
-  let pullResults: IGitResult;
-  let commitResults: IGitResult;
-  let pushResults: IGitResult;
-  let gitError = false;
+  //check to see if the remote branch has been changed
+  const remoteStatus = await checkRemoteStatus(false);
+
+  //if check is in progress or error checking remote, stop syncFiles()
+  if (remoteStatus === undefined) {
+    syncInfo.accessError = true;
+    syncInfo.message = "Unable to check Remote files\nPlease wait and try again";
+
+    if (showUser) {
+      logseq.UI.showMsg(syncInfo.message, "warning", { timeout: 3000 });
+    }
+
+    return syncInfo;
+  }
+  const isRemoteCurrent = remoteStatus;
 
   //check to see if there are local changes
   const localStatus = await checkStatus();
   const isLocalCurrent = localStatus.stdout === "" ? true : false;
   
-  //check to see if the remote branch has been changed
-  const remoteStatus = await checkIsSynced(false);
-  if (remoteStatus === undefined) {
-    //if check is in progress or error checking remote, stop syncFiles()
-    logseq.UI.showMsg("Unable to check Remote files\nPlease wait and try again", "warning", { timeout: 3000 });
-    return;
-  }
-  const isRemoteCurrent = remoteStatus;
-
   //if local or remote has been changed, update files
   if (!isLocalCurrent || !isRemoteCurrent) {
-    hidePopup();
-    setPluginStyle(LOADING_STYLE); //let user know the plugin is working
-    logseq.UI.showMsg("Syncing files with Remote...", "", { timeout: 5000 });
-
-    //if only remote has been changed => pull only
-    if (!isRemoteCurrent && isLocalCurrent) {
-      pullResults = await pull(false);
-
-      //check if there's an error with pull command
-      if (pullResults.exitCode === 0) {
-        message = 'Remote changes pulled to Local';
-        syncInfo.wasPulled = true;
-
-      } else {
-        gitError = true;
-        console.log("[syncFiles:] pull Error:", pullResults);
-      }
-    }
-
-    //if only local has been changed => commit and push only
-    if (isRemoteCurrent && !isLocalCurrent) {
-      commitResults = await commit(false, `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`);
-      pushResults = await push(false);
-
-      //check if there's an error with commit or push commands
-      if ( commitResults.exitCode === 0 && pushResults.exitCode === 0) {
-        message = 'Local changes pushed to Remote'
-        syncInfo.wasCommitted = true;
-        syncInfo.wasPushed = true;
-
-      } else {
-        gitError = true;
-        console.log("[syncFiles:] commit results:", commitResults);
-        console.log("[syncFiles:] push results:", pushResults);
-      }
-    }
-
-    //if both local and remote have changed => pull, commit, then push
-    if (!isLocalCurrent && !isRemoteCurrent) {
-      commitResults = await commit(
-        false,
-        `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`
-        );
-      pullResults = await pull(false);
-
-      //Try committing again if remote branch was ahead of local and caused an error
-      if (commitResults.exitCode !== 0) {
-        commitResults = await commit(
-          false,
-          `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`
-          );
-        console.log("[syncFiles:] commit retry", commitResults);
-      }
-
-      //Check if there are errors with pull, commit, or push commands
-      if (pullResults.exitCode === 0 && commitResults.exitCode === 0) {
-        syncInfo.wasPulled = true;
-        syncInfo.wasCommitted = true;
-
-        pushResults = await push(false);
-
-        if (pushResults.exitCode === 0) {
-          message = 'Remote changes pulled to Local, then Local changes pushed to Remote';
-          syncInfo.wasPushed = true;
-
-        } else {
-          gitError = true;
-          console.log("[syncFiles:] push results:", pushResults);
-        }
-      } else {
-        gitError = true;
-        console.log("[syncFiles:] pull results:", pullResults);
-        console.log("[syncFiles:] commit results:", commitResults);
-      }
-    }
+    let syncResults =  await syncFiles(isLocalCurrent, isRemoteCurrent, showUser);
+  
+    Object.assign(syncInfo, syncResults);
   }
 
   //If git error, update message
-  if (gitError) {
-    message = "Error syncing files"
+  if (syncInfo.gitError) {
+    syncInfo.message = "Error syncing files"
   } else {
     lastSyncTime = Date.now(); //update last time synced
   }
 
   //Display results of sync
-  let messageType = gitError ? "warning" : "success";
-  logseq.UI.showMsg(message, messageType, { timeout: 8000 });
+  if (showUser) {
+    console.log("hiding in util.js");
+    let messageType = syncInfo.gitError ? "warning" : "success";
+    logseq.UI.showMsg(syncInfo.message, messageType, { timeout: 8000 });
+  }
   console.log("[syncFiles:] === Complete");
   checkStatus();
-  return syncInfo; //give info on what Git commands happened
+  return syncInfo; //return info of syncing process
+}
+
+const syncFiles = async (isLocalCurrent:boolean, isRemoteCurrent:boolean, showUser:boolean) => {
+  let message: string = 'No changes detected\nYou\'re Synced with Remote!';
+  //Set up Git command result containers
+  let pullResults: IGitResult | undefined;
+  let commitResults: IGitResult | undefined;
+  let pushResults: IGitResult | undefined;
+  let wasPulled= false;
+  let wasCommitted= false;
+  let wasPushed = false;
+  let gitError = false;
+
+  //Don't always update UI when syncing files
+  if (showUser) {
+    hidePopup();
+    logseq.UI.showMsg("Syncing files with Remote...", "", { timeout: 5000 });
+  }
+
+  //let user know a sync is being attempted
+  setPluginStyle(LOADING_STYLE);
+
+  //if only remote has been changed => pull only
+  if (!isRemoteCurrent && isLocalCurrent) {
+    pullResults = await pull(false);
+
+    //check if there's an error with pull command
+    if (pullResults.exitCode === 0) {
+      message = 'Remote changes pulled to Local';
+      wasPulled = true;
+
+    } else {
+      gitError = true;
+      console.log("[syncFiles:] pull Error:", pullResults);
+    }
+  }
+
+  //if only local has been changed => commit and push only
+  if (isRemoteCurrent && !isLocalCurrent) {
+    commitResults = await commit(false, `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`);
+    pushResults = await push(false);
+
+    //check if there's an error with commit or push commands
+    if ( commitResults.exitCode === 0 && pushResults.exitCode === 0) {
+      message = 'Local changes pushed to Remote'
+      wasCommitted = true;
+      wasPushed = true;
+
+    } else {
+      gitError = true;
+      console.log("[syncFiles:] commit results:", commitResults);
+      console.log("[syncFiles:] push results:", pushResults);
+    }
+  }
+
+  //if both local and remote have changed => pull, commit, then push
+  if (!isLocalCurrent && !isRemoteCurrent) {
+    commitResults = await commit(
+      false,
+      `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`
+      );
+    pullResults = await pull(false);
+
+    //Try committing again if remote branch was ahead of local and caused an error
+    if (commitResults.exitCode !== 0) {
+      commitResults = await commit(
+        false,
+        `[logseq-plugin-git-autosync:commit] ${new Date().toISOString()}`
+        );
+      console.log("[syncFiles:] commit retry", commitResults);
+    }
+
+    //Check if there are errors with pull, commit, or push commands
+    if (pullResults.exitCode === 0 && commitResults.exitCode === 0) {
+      wasPulled = true;
+      wasCommitted = true;
+
+      pushResults = await push(false);
+
+      if (pushResults.exitCode === 0) {
+        message = 'Remote changes pulled to Local, then Local changes pushed to Remote';
+        wasPushed = true;
+
+      } else {
+        gitError = true;
+        console.log("[syncFiles:] push results:", pushResults);
+      }
+    } else {
+      gitError = true;
+      console.log("[syncFiles:] pull results:", pullResults);
+      console.log("[syncFiles:] commit results:", commitResults);
+    }
+  }
+
+  //Compile results for return info
+  let syncStatus = {
+    wasPulled: wasPulled,
+    pullResults: pullResults,
+    wasCommitted: wasCommitted,
+    commitResults: commitResults,
+    wasPushed: wasPushed,
+    pushResults: pushResults,
+    gitError: gitError,
+    message: message
+  }
+
+  return syncStatus
 }
