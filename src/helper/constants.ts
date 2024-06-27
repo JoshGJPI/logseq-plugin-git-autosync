@@ -153,4 +153,20 @@ export const SETTINGS_SCHEMA: SettingSchemaDesc[] = [
     description:
       "Automatically sync local and remote files",
   },
+  {
+    key: "typeCommitMessage",
+    title: "Type Commit Message",
+    type: "enum",
+    default: "Default Message With Date",
+    description: "Type of commit message to use",
+    enumPicker: "select",
+    enumChoices: ['Custom Message' , 'Default Message', 'Custom Message With Date', 'Default Message With Date'],
+  },
+  {
+    key: "customCommitMessage",
+    title: "Custom Commit Message",
+    type: "string",
+    default: "",
+    description: "Custom commit message for plugin (valid only if commit message is set to Custom Message)",
+  }
 ];

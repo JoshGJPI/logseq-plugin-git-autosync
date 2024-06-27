@@ -9,6 +9,7 @@ import {
   log,
   pull,
   pullRebase,
+  commitMessage,
   push,
   status,
 } from "./helper/git";
@@ -78,7 +79,8 @@ if (isDevelopment) {
       }),
       commit: debounce(async function () {
         hidePopup();
-        commit(true, `[logseq-plugin-git:commit] ${new Date().toISOString()}`);
+        await commit(true, commitMessage());
+        checkStatus();
       }),
       push: debounce(async function () {
         setPluginStyle(LOADING_STYLE);
@@ -95,7 +97,7 @@ if (isDevelopment) {
         if (changed) {
           const res = await commit(
               true,
-              `[logseq-plugin-git:commit] ${new Date().toISOString()}`
+              commitMessage()
           );
           if (res.exitCode === 0) await push(true);
         }

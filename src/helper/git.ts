@@ -140,3 +140,35 @@ export const push = async (showRes = true): Promise<IGitResult> => {
   }
   return res
 }
+
+/**
+ * Returns the commit message based on the selected commit message type in the logseq settings.
+ * @returns The commit message.
+ */
+export const commitMessage = () : string => {
+
+  let defaultMessage = "[logseq-plugin-git:commit]";
+
+  switch (logseq.settings?.typeCommitMessage as string) {
+    case "Default Message":
+      return defaultMessage;
+    case "Default Message With Date":
+      return defaultMessage + " " + new Date().toISOString();
+    case "Custom Message":
+      let customMessage = logseq.settings?.customCommitMessage as string;
+      if (customMessage.trim() === "") {
+        return defaultMessage;
+      } else {
+        return customMessage;
+      }
+    case "Custom Message With Date":
+      let customMessageWithDate = logseq.settings?.customCommitMessage as string;
+      if (customMessageWithDate.trim() === "") {
+        return defaultMessage + " " + new Date().toISOString();
+      } else {
+        return customMessageWithDate + " " + new Date().toISOString();
+      }
+    default:
+      return defaultMessage;
+  }
+}
