@@ -34,7 +34,7 @@ try {
 } catch (e) {
   // @ts-ignore
   logseq.Git['execCommand'] = async function (args: string[]) {
-    const ret = await logseq.App.execGitCommand(args)
+    const ret = await logseq.Git.execCommand(args)
     return {exitCode: ret == undefined ? 1 : 0, stdout: ret}
   }
 }
